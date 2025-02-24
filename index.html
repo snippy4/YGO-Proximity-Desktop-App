@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yu-Gi-Oh Proximity Game</title>
+    <link rel="stylesheet" href="styles.css">
+    <script>
+        let previousSearches = [];
+
+        async function onSearch(input) {
+            if (input.length > 0) {
+                try {
+                    const response = await fetch(`https://api.ygoproximity.com/search?q=${encodeURIComponent(input)}`);
+                    let suggestions = await response.json();
+
+                    // Check if suggestions is an array with a stringified JSON inside
+                    if (Array.isArray(suggestions) && typeof suggestions[0] === "string") {
+                        suggestions = JSON.parse(suggestions[0]); // Parse the inner JSON string
+                    }
+
+                    if (!Array.isArray(suggestions)) {
+                        console.error("Invalid suggestions format:", suggestions);
+                        return;
+                    }
+
+                    const suggestionsDiv = document.getElementById('suggestions');
+                    suggestionsDiv.innerHTML = ''; // Clear previous suggestions
+
+                    // Display up to 5 suggestions with card name and images
+                    suggestions = suggestions.filter(item => !previousSearches.some(item2 => item.id == item2.id))
+                    suggestions.slice(0, 10).forEach(suggestion => {
+                        const cardContainer = document.createElement('div');
+                        cardContainer.style.display = 'flex';
+                        cardContainer.style.alignItems = 'center';
+                        cardContainer.style.margin = '5px 0';
+                        cardContainer.style.border = '1px solid #ddd';
+                        cardContainer.style.padding = '5px';
+                        cardContainer.style.borderRadius = '5px';
+
+                        // Card Image
+                        const img = document.createElement('img');
+                        img.src = `https://card.yugioh-api.com/${suggestion.id}/image`;
+                        img.alt = suggestion.name;
+                        img.style.width = '50px';
+                        img.style.height = '70px';
+                        img.style.marginRight = '10px';
+
+                        // Card Button
+                        const button = document.createElement('button');
+                        button.textContent = suggestion.name;
+                        button.style.flexGrow = '1';
+                        button.style.padding = '10px';
+                        button.style.cursor = 'pointer';
+                        button.onclick = () => {
+                            document.getElementById('search-bar').value = suggestion.name;
+                            onEnter(); // Trigger the search logic
+                        };
+
+                        cardContainer.appendChild(img);
+                        cardContainer.appendChild(button);
+                        suggestionsDiv.appendChild(cardContainer);
+                    });
+                } catch (error) {
+                    console.error("Error fetching or parsing suggestions:", error);
+                }
+            } else {
+                document.getElementById('suggestions').innerHTML = '';
+            }
+        }
+
+        let guessCount = 0; // Initialize the guess count
+
+async function onEnter() {
+    const inputField = document.getElementById('search-bar');
+    const input = inputField.value;
+
+    if (input.length > 0) {
+        try {
+            const response = await fetch(`https://api.ygoproximity.com/select?q=${encodeURIComponent(input)}`);
+            const result = await response.json();
+
+            // Increment and update the guess count
+
+            // Add to previous searches
+            let ParsedValue = parseFloat(result.value);
+            let display = "No connection :(";
+            if (result.value === "Correct") {
+                display = "Correct!";
+                ParsedValue = 21
+                showModal(result.key, result.id); // Trigger modal
+            } else if (!isNaN(ParsedValue)) {
+                if (ParsedValue == 20) {
+                    display = "The Closest Card!";
+                } else if (ParsedValue >= 1) {
+                    display = 20 - ParsedValue + " card(s) away!";
+                } else if (ParsedValue >= 0.8) {
+                    display = "Flaming hot";
+                } else if (ParsedValue >= 0.6) {
+                    display = "Warm";
+                } else if (ParsedValue >= 0.4) {
+                    display = "Tepid";
+                } else if (ParsedValue >= 0.2) {
+                    display = "Cold";
+                } else {
+                    display = "At least someone played these cards together?";
+                }
+                
+            } else {
+                ParsedValue = 0.0;
+            }
+
+            if (!(previousSearches.some(e => e.id == result.id))) {
+                guessCount++;
+                document.getElementById('guess-counter').textContent = `You have guessed ${guessCount} times.`;
+                previousSearches.push({ key: result.key, id: result.id, value: ParsedValue, display: display });
+            }
+
+            // Update the "Last Guess" display
+            const lastGuessDiv = document.getElementById('last-guess');
+            lastGuessDiv.innerHTML = '';
+            const latestGuess = { key: result.key, id: result.id, value: ParsedValue, display: display }; // Most recent guess
+            if (latestGuess) {
+                const lastGuessContainer = createSearchDisplay(latestGuess);
+                lastGuessDiv.appendChild(lastGuessContainer);
+            }
+
+            // Update the previous searches display
+            previousSearches.sort((a, b) => b.value - a.value);
+            const previousSearchesDiv = document.getElementById('previous-searches');
+            previousSearchesDiv.innerHTML = '';
+            previousSearches.forEach(search => {
+                const searchContainer = createSearchDisplay(search);
+                previousSearchesDiv.appendChild(searchContainer);
+            });
+
+            inputField.value = '';
+            document.getElementById('suggestions').innerHTML = '';
+        } catch (error) {
+            console.error("Error fetching results:", error);
+        }
+    }
+}
+
+async function getHint() {
+            if (previousSearches.length === 0) {
+                try {
+                const response = await fetch(`https://api.ygoproximity.com/hint?q=23434538`);
+                const hint = await response.json();
+                if (hint) {
+                    document.getElementById('search-bar').value = hint;
+                    onEnter(); // Automatically search using the hint
+                } else {
+                    console.error("Invalid hint received:", hint);
+                }
+            } catch (error) {
+                console.error("Error fetching hint:", error);
+            }
+            return
+            }
+
+            const firstGuessId = previousSearches[0].id;
+            try {
+                const response = await fetch(`https://api.ygoproximity.com/hint?q=${firstGuessId}`);
+                const hint = await response.json();
+                if (hint) {
+                    document.getElementById('search-bar').value = hint;
+                    onEnter(); // Automatically search using the hint
+                } else {
+                    console.error("Invalid hint received:", hint);
+                }
+            } catch (error) {
+                console.error("Error fetching hint:", error);
+            }
+        }
+
+        async function getAnswer() {
+            try {
+                // Fetch the answer from the server
+                const response = await fetch("https://api.ygoproximity.com/answer");
+                
+                // Parse the response JSON
+                const responseText = await response.text();
+                const data = JSON.parse(JSON.parse(responseText));
+                // Check if the data is an array and has at least one element
+                if (Array.isArray(data) && data.length > 0) {
+                    const cardName = data[0].name; // Extract the card's name
+                    
+                    // Set the card's name as the value of the search bar
+                    document.getElementById('search-bar').value = cardName;
+                    
+                    // Trigger the onEnter function to simulate entering the answer
+                    onEnter();
+                } else {
+                    alert("No card data returned from the server.");
+                }
+            } catch (error) {
+                console.error("Error fetching the answer:", error);
+                alert("Failed to fetch the answer. Please try again.");
+            }
+        }
+
+        async function showClosestCards() {
+            try {
+                // Fetch the list of closest cards from the server
+                const response = await fetch("https://api.ygoproximity.com/list");
+                const responseText = await response.text();
+                const loadingIndicator = document.getElementById('loading-indicator');
+                loadingIndicator.style.display = 'block';
+                // Parse the response directly
+                const parsedResponse = JSON.parse(JSON.parse(responseText));
+
+                // Debug: Log parsedResponse to see if it is in the expected format
+                console.log("Parsed Response: ", parsedResponse);
+
+                // Check if parsedResponse is an object
+                if (typeof parsedResponse !== "object" || parsedResponse === null) {
+                    console.error("Parsed response is not a valid object", parsedResponse);
+                    return;
+                }
+
+                // Convert the closest cards object into an array of { id, value }
+                const cardEntries = Object.entries(parsedResponse).map(([id, value]) => {
+                    console.log(`Processing ID: ${id}, Value: ${value}`); // Debug log for each entry
+                    let display;
+                    if (value === 20) {
+                        display = "The Closest Card!";
+                    } else if (value >= 1) {
+                        display = `${20 - value} card(s) away!`;
+                    } else if (value >= 0.8) {
+                        display = "Flaming hot";
+                    } else if (value >= 0.6) {
+                        display = "Warm";
+                    } else if (value >= 0.4) {
+                        display = "Tepid";
+                    } else if (value >= 0.2) {
+                        display = "Cold";
+                    } else {
+                        display = "At least someone played these cards together?";
+                    }
+                    return {
+                        id: parseInt(id),   // Ensure card ID is an integer
+                        value: parseFloat(value),  // Ensure value is a float
+                        display,
+                    };
+                });
+
+                // Debug: Log cardEntries to confirm conversion
+                console.log("Card Entries: ", cardEntries);
+
+                // Fetch card names using the YGOPRODeck API
+                const fetchCardName = async (id) => {
+                    const response = await fetch(`https://db.ygoprodeck.com/api/v7/cardinfo.php?id=${id}`);
+                    const data = await response.json();
+                    return data?.data?.[0]?.name || `Unknown Card (${id})`;  // Fallback if no name found
+                };
+
+                // Fetch names for all closest cards
+                for (const card of cardEntries) {
+                    const cardName = await fetchCardName(card.id);
+                    card.key = cardName; // Add the card name to the object
+                }
+
+
+                // Add to previousSearches and update the UI
+                cardEntries.forEach((card) => {
+                    if (!previousSearches.some((search) => search.id == card.id)) {
+                        previousSearches.push({
+                            key: card.key,
+                            id: card.id,
+                            value: card.value,
+                            display: card.display,
+                        });
+                    }
+                });
+                previousSearches.sort((a, b) => b.value - a.value);
+                // Update the previous guesses display
+                const previousSearchesDiv = document.getElementById('previous-searches');
+                previousSearchesDiv.innerHTML = ''; // Clear existing entries
+                previousSearches.forEach((search) => {
+                    const searchContainer = createSearchDisplay(search);
+                    previousSearchesDiv.appendChild(searchContainer);
+                });
+
+                // Hide the modal after displaying closest cards
+                loadingIndicator.style.display = 'none';
+                closeModal();
+            } catch (error) {
+                console.error("Error fetching closest cards:", error);
+            }
+        }
+
+
+
+
+
+
+        // Function to show the modal
+        function showModal(cardName, cardId) {
+            const modal = document.getElementById('congrats-modal');
+            const modalContent = document.getElementById('modal-content');
+
+            modalContent.innerHTML = `
+                <img src="https://card.yugioh-api.com/${cardId}/image" alt="${cardName}">
+                <h2>Congratulations!</h2>
+                <p>You guessed today's card: <strong>${cardName}</strong></p>
+                <p>It took ${guessCount + 1} guesses</p>
+                <button class="close-btn" onclick="closeModal()">Close</button>
+                <button class="show-closest-btn" onclick="showClosestCards()">Show Closest Cards</button>
+                <div id="loading-indicator" style="display: none; text-align: center; font-size: 1.2em; color: gray;">
+                Processing cards... <span id="spinner">🔄</span>
+                </div>
+
+            `;
+
+            modal.style.display = 'flex';
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('congrats-modal');
+            modal.style.display = 'none';
+        }
+
+        // Function to create the search display container
+        function createSearchDisplay(search) {
+            const container = document.createElement('div');
+            container.style.display = 'flex';
+            container.style.alignItems = 'center';
+            container.style.marginBottom = '10px';
+
+            // Card Image
+            const img = document.createElement('img');
+            img.src = `https://card.yugioh-api.com/${search.id}/image`;
+            img.alt = search.key;
+            img.style.width = '50px';
+            img.style.height = '70px';
+            img.style.marginRight = '10px';
+            img.style.border = '1px solid #ddd';
+            img.style.borderRadius = '5px';
+
+            // Text Information
+            const text = document.createElement('div');
+            text.textContent = `${search.key}: ${search.display}`;
+            text.style.marginBottom = '5px';
+            text.style.flex = '1';
+
+            // Progress Bar
+            const progressBar = document.createElement('div');
+            progressBar.style.width = '100%';
+            progressBar.style.height = '20px';
+            progressBar.style.backgroundColor = '#ddd';
+            progressBar.style.borderRadius = '10px';
+            progressBar.style.overflow = 'hidden';
+
+            if (search.value != 0){
+            const progressFill = document.createElement('div');
+            progressFill.style.height = '100%';
+            progressFill.style.width = `${search.value * 100}%`; // Fill percentage
+            progressFill.style.backgroundColor = getColor(search.value); // Get color based on value
+            progressFill.style.transition = 'width 0.5s ease'; // Smooth animation
+
+            progressBar.appendChild(progressFill);
+            }
+            // Append components to container
+            container.appendChild(img);
+            const textAndBar = document.createElement('div');
+            textAndBar.style.flex = '1';
+            textAndBar.appendChild(text);
+            textAndBar.appendChild(progressBar);
+
+            container.appendChild(textAndBar);
+
+            return container;
+        }
+
+        // Function to determine color based on value
+        function getColor(value) {
+            // Transition from red (0) to green (1)
+            const red = Math.floor((1 - value) * 255);
+            const green = Math.floor(value * 255);
+            return `rgb(${red}, ${green}, 0)`;
+        }
+
+        function initializeDailyResetNotification() {
+            const now = new Date();
+            const nextReset = new Date();
+            nextReset.setUTCHours(6, 0, 0, 0);
+            if (now > nextReset) {
+                nextReset.setUTCDate(nextReset.getUTCDate() + 1);
+            }
+
+            const timeUntilReset = nextReset - now;
+
+            setTimeout(() => {
+                alert("The daily card has reset! The page will now refresh so that guesses accurately reflect the new card.");
+
+                 location.reload();
+
+                // Set up the next notification
+                initializeDailyResetNotification();
+            }, timeUntilReset);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const inputField = document.getElementById('search-bar');
+            inputField.addEventListener('input', () => onSearch(inputField.value));
+            inputField.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    //onEnter();
+                    event.preventDefault();
+                }
+            });
+            initializeDailyResetNotification();
+        });
+    </script>
+</head>
+<body>
+    <nav >
+        <a href="index.html" >Home</a>
+        <a href="how-to-play.html" >How to Play</a>
+    </nav>
+    <main>
+    <h1>Guess Card</h1>
+    <input type="text" id="search-bar" placeholder="Type to search..." autocomplete="off">
+    <div id="suggestions" style="margin-top: 10px;"></div>
+    <h2>Previous Guess</h2>
+    <p id="guess-counter" style="margin-top: 10px; max-width: fit-content; margin-left: auto; margin-right: auto;">You have guessed 0 times.</p>
+    <div id="last-guess" style="margin-top: 10px;"></div>
+    <div class="hint-container">
+        <button class="hint-button" onclick="getHint()">Get Hint</button>
+        <button class="hint-button" onclick="getAnswer()">Give Up</button>
+    </div>
+        <h2>Closest Guesses</h2>
+    <div id="previous-searches" style="margin-top: 10px;"></div>
+    </main>
+    <div id="congrats-modal" class="modal">
+        <div id="modal-content" class="modal-content">
+            <!-- Content populated dynamically -->
+        </div>
+    </div>
+</body>
+</html>
