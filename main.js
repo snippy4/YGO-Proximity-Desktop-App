@@ -4,9 +4,9 @@ let mainWindow;
 
 app.whenReady().then(() => {
   mainWindow = new BrowserWindow({
-    width: 800,
-    height: 600,
-    resizable: false,
+    width: 1400,
+    height: 800,
+    resizable: true,
     frame: true,
     title: "YGO Proximity",
     webPreferences: {
