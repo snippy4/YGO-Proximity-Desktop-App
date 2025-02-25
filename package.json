@@ -1,7 +1,6 @@
 {
   "name": "ygo-proximity-desktop-app",
   "version": "1.0.0",
-  "description": "",
   "main": "main.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -12,5 +11,14 @@
   "license": "ISC",
   "devDependencies": {
     "electron": "^34.2.0"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/snippy4/YGO-Proximity-Desktop-App.git"
+  },
+  "bugs": {
+    "url": "https://github.com/snippy4/YGO-Proximity-Desktop-App/issues"
+  },
+  "homepage": "https://github.com/snippy4/YGO-Proximity-Desktop-App#readme",
+  "description": ""
 }
